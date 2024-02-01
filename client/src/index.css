@@ -4,9 +4,9 @@ body {
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
+  
   -moz-osx-font-smoothing: grayscale;
-  background-color: blanchedalmond;
-}
+  background-image: linear-gradient(to right top, #271f44, #2a2150, #2d225c, #302468, #332574);}
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
