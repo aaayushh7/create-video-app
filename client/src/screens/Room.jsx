@@ -2,6 +2,10 @@ import React, { useEffect, useCallback, useState, useRef } from "react";
 import ReactPlayer from "react-player";
 import peer from "../service/peer";
 import { useSocket } from "../context/SocketProvider";
+import IconButton from '@mui/material/IconButton';
+import Fingerprint from '@mui/icons-material/Fingerprint';
+import Box from '@mui/material/Box';
+import LinearProgress from '@mui/material/LinearProgress';
 
 const BlinkingDot = ({ isConnected }) => {
   const dotColor = isConnected ? 'green' : 'red';
@@ -21,11 +25,32 @@ const BlinkingDot = ({ isConnected }) => {
   );
 };
 
+function useInterval(callback, delay) {
+  const savedCallback = useRef();
+
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    function tick() {
+      savedCallback.current();
+    }
+    if (delay !== null) {
+      const id = setInterval(tick, delay);
+      return () => clearInterval(id);
+    }
+  }, [delay]);
+}
+
 const RoomPage = () => {
   const socket = useSocket();
   const [remoteSocketId, setRemoteSocketId] = useState(null);
   const [myStream, setMyStream] = useState();
   const [remoteStream, setRemoteStream] = useState();
+  const [userPresence, setUserPresence] = useState(null); // New state to track user presence
+
+  const savedCallback = useRef();
 
   const handleUserJoined = useCallback(({ email, id }) => {
     console.log(`Email ${email} joined room`);
@@ -133,33 +158,66 @@ const RoomPage = () => {
     const player = playerRef?.current;
 
     if (player) {
-      // Set the desired width and height for the canvas
-      const canvasWidth = 160; // Adjust to your preference
-      const canvasHeight = 90; // Adjust to your preference
+      const canvasWidth = 1280; // Increased width for higher resolution
+      const canvasHeight = 720; // Increased height for higher resolution
 
       const canvas = document.createElement("canvas");
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
 
       const context = canvas.getContext("2d");
-
-      // Get the internal video element from the ReactPlayer component
       const videoElement = player.getInternalPlayer();
 
-      // Draw the current frame onto the canvas with the new dimensions
       context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-      // Get the data URL of the canvas
       const imageSrc = canvas.toDataURL("image/png");
 
-      console.log(imageSrc);
+      // Save the image to the "photo" folder
+      // const saveImage = () => {
+      //     const link = document.createElement('a');
+      //     link.href = imageSrc;
+      //     link.download = 'captured_photo.jpg';
+      //     document.body.appendChild(link);
+      //     link.click();
+      //     document.body.removeChild(link);
+      fetch('http://192.168.238.18:5000/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: imageSrc })
 
-      // Now you can save imageSrc to a JSON file or perform other actions
+      })
+        .then(response => {
+          return response.json();  // Parse the JSON response
+        })
+        .then(data => {
+          console.log("the result is " + data.result);
+          if (data.result === "True") {
+            console.log("User is here!");
+            setUserPresence(true);
+          }
+          else if (data.result === "False") {
+            console.log("User is not here!");
+            setUserPresence(false);
+          } else if (data.result === undefined){
+            console.log("Unexpected result:", data.result);
+            setUserPresence("");
+            console.log("testing failed")
+          }
+        })
+        .catch(error => {
+          console.error('Error processing response:', error);
+        });
     }
   }, [playerRef]);
 
-  // Schedule the capture function to run every 5 seconds
-  setInterval(capture, 5000);
+
+  // saveImage();
+
+
+  useInterval(capture, 15000);
+
 
 
   return (
@@ -178,7 +236,7 @@ const RoomPage = () => {
               </span>
             )}
           </h4>
-          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginTop: '10px', gap:'10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginTop: '10px', gap: '10px' }}>
             {myStream && (
               <button onClick={sendStreams} className="button-36">
                 Send Stream
@@ -186,7 +244,7 @@ const RoomPage = () => {
             )}
 
             {remoteSocketId && (
-              <button onClick={handleCallUser}  class="button-45">
+              <button onClick={handleCallUser} class="button-45">
                 Call
               </button>
             )}
@@ -225,18 +283,42 @@ const RoomPage = () => {
                   url={remoteStream}
                   style={{
                     borderRadius: '10px',
-                    border: '4px solid #205AD0',
-                    backgroundColor: '#000000'
+                    border: '4px solid',
+                    backgroundColor: userPresence ? '#000000' : '#000000',
+                    borderColor: userPresence ? '#205AD0' : '#df1b1b',
+                    boxShadow: userPresence ? 'rgba(32, 90, 208, 1) 0px 3px 8px;' : "#df1b1b"
                   }}
                 />
                 {/* <button onClick={capture}>Capture</button> */}
               </center>
             </div>
           )}
+
+          {myStream && remoteStream && (
+            <div style={{ position: 'absolute', top: '10px', right: '10px', color: 'white' }}>
+              {userPresence === true && (
+                <>
+                  <IconButton aria-label="fingerprint" color="primary">
+                    <Fingerprint /> <p style={{ fontSize: '17px', fontWeight: 'bold', textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)', fontFamily: 'Josefin Sans, sans-serif' }}>User is here!</p>
+                  </IconButton>
+                </>
+              )}
+              {userPresence === false && (
+                <>
+                  <IconButton aria-label="fingerprint" color="secondary">
+                    <Fingerprint /><p style={{ fontSize: '17px', fontWeight: 'bold', textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)', fontFamily: 'Josefin Sans, sans-serif' }}>User is not here!</p>
+                  </IconButton></>
+              )}
+              {/* {userPresence === "" && (
+                <>
+                  <Box sx={{ width: '100%' }}>
+                    <LinearProgress /><p>LOADING</p>
+                  </Box></>
+              )} */}
+            </div>
+          )}
         </div></div></>
   );
-};
+}
 
 export default RoomPage;
-
-
